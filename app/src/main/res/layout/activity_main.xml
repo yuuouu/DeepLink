@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_marginHorizontal="40dp">
+
+    <Button
+        android:id="@+id/btn_jd"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="打开京东"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/btn_taobao"
+        android:layout_marginTop="50dp"/>
+
+    <Button
+        android:id="@+id/btn_taobao"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="打开淘宝"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_jd"
+        app:layout_constraintBottom_toTopOf="@id/btn_tmall" />
+
+    <Button
+        android:id="@+id/btn_tmall"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="打开天猫"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_taobao"
+        app:layout_constraintBottom_toTopOf="@id/btn_amazon" />
+
+    <Button
+        android:id="@+id/btn_amazon"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="打开亚马逊"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_tmall"
+        app:layout_constraintBottom_toTopOf="@id/btn_amazon_cn" />
+
+    <Button
+        android:id="@+id/btn_amazon_cn"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="打开亚马逊中国"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_amazon"
+        app:layout_constraintBottom_toTopOf="@id/btn_cycle" />
+
+    <Button
+        android:id="@+id/btn_cycle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="按优先级打开\n(京东/淘宝/天猫/亚马逊/亚马逊CN)"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_amazon"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginBottom="50dp"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
