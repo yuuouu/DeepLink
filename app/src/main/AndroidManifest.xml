@@ -8,8 +8,8 @@
         <package android:name="com.tmall.wireless" />
         <package android:name="com.amazon.mShop.android.shopping" />
         <package android:name="cn.amazon.mShop.android" />
-
     </queries>
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -25,7 +25,6 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>

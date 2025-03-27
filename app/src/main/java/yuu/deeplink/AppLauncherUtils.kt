@@ -1,7 +1,5 @@
 package yuu.deeplink
 
-
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,6 +8,19 @@ import android.util.Log
 import android.widget.Toast
 
 object AppLauncherUtils {
+    private val shopData = hashMapOf(
+        "jd" to ShopInfo(
+            packageName = "com.jingdong.app.mall", url = "https://mall.jd.com/index-11437885.html", displayName = "京东"
+        ), "taobao" to ShopInfo(
+            packageName = "com.taobao.taobao", url = "https://obsbot.tmall.com/", displayName = "淘宝"
+        ), "tmall" to ShopInfo(
+            packageName = "com.tmall.wireless", url = "https://obsbot.tmall.com/", displayName = "天猫"
+        ), "amazon" to ShopInfo(
+            packageName = "com.amazon.mShop.android.shopping", url = "https://www.amazon.com/s?me=A3NN5GYI68DJ8", displayName = "亚马逊"
+        ), "amazon_cn" to ShopInfo(
+            packageName = "cn.amazon.mShop.android", url = "https://globalstore.amazon.cn/brandStore/OBSBOT", displayName = "亚马逊中国"
+        )
+    )
     private val SHOP_PRIORITY_ORDER = listOf(
         "jd",       // 京东
         "taobao",   // 淘宝
@@ -17,6 +28,7 @@ object AppLauncherUtils {
         "amazon",   // 亚马逊国际
         "amazon_cn" // 亚马逊中国
     )
+
     private fun checkApkExist(context: Context, packageName: String): Boolean {
         return try {
             context.packageManager.getApplicationInfo(packageName, 0)
@@ -36,7 +48,15 @@ object AppLauncherUtils {
         }
     }
 
-    fun openShop(context: Context, shopData: HashMap<String, ShopInfo>) {
+    fun openShop(context: Context, shopKey: String) {
+        shopData[shopKey]?.let { shopInfo ->
+            openShop(context, shopInfo.url, shopInfo.packageName)
+        } ?: run {
+            Log.e("yuu", "openShop $shopKey 打开失败")
+        }
+    }
+
+    fun openShop(context: Context) {
         for (shopKey in SHOP_PRIORITY_ORDER) {
             shopData[shopKey]?.let { shopInfo ->
                 if (openShop(context, shopInfo)) {
@@ -53,9 +73,9 @@ object AppLauncherUtils {
         return openShop(context, shopInfo.url, shopInfo.packageName)
     }
 
-    fun openShop(context: Context, url: String, packageName: String): Boolean {
+    private fun openShop(context: Context, url: String, packageName: String): Boolean {
         if (!checkApkExist(context, packageName)) {
-            Log.e("yuu", "openShop $packageName 不存在, 可能没有安装或者没有在 AndroidManifest 的<queries>中添加包名")
+            Log.e("yuu", "openShop $packageName 不存在, 可能没有安装或者没有在 AndroidManifest 的 <queries> 中添加包名")
             Toast.makeText(context, "$packageName 未找到", Toast.LENGTH_SHORT).show()
             openUrlByBrowser(context, url)
             return false
@@ -72,7 +92,7 @@ object AppLauncherUtils {
                 context.startActivity(intent)
                 true
             } else {
-                Log.e("yuu", "openShop intent为null,可能是目标包没有实现 data android:scheme=\"https\" 属性")
+                Log.e("yuu", "openShop intent为null,可能是目标包没有实现 <data android:scheme=\"https\"> 属性")
                 openUrlByBrowser(context, url)
                 false
             }
