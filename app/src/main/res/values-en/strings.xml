@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DeepLink</string>
+    <string name="open_jd">Open JD</string>
+    <string name="open_taobao">Open Taobao</string>
+    <string name="open_tmall">Open Tmall</string>
+    <string name="open_amazon">Open Amazon</string>
+    <string name="open_pdd">Open Pinduoduo</string>
+    <string name="open_by_priority">Open by priority\n(JD/Taobao/Tmall/Amazon/Pinduoduo)</string>
+    <string name="open_shop_failed">openShop failed to open %1$s</string>
+    <string name="open_shop_priority">openShop SHOP_PRIORITY_ORDER opened %1$s</string>
+    <string name="open_shop_no_available">openShop found no available shopping apps</string>
+    <string name="toast_no_available_shops">No shopping apps available</string>
+    <string name="open_shop_package_missing">openShop could not find %1$s. The app might not be installed or its package name is missing from AndroidManifest &lt;queries&gt;.</string>
+    <string name="toast_package_not_found">%1$s not found</string>
+    <string name="open_shop_intent_null">openShop intent is null. %1$s might not declare &lt;data android:scheme=&quot;https&quot;&gt;.</string>
+    <string name="shop_name_jd">JD</string>
+    <string name="shop_name_taobao">Taobao</string>
+    <string name="shop_name_tmall">Tmall</string>
+    <string name="shop_name_amazon">Amazon</string>
+    <string name="shop_name_amazon_cn">Amazon China</string>
+</resources>

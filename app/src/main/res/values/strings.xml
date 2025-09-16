@@ -1,3 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">DeepLink</string>
+    <string name="open_jd">打开京东</string>
+    <string name="open_taobao">打开淘宝</string>
+    <string name="open_tmall">打开天猫</string>
+    <string name="open_amazon">打开亚马逊</string>
+    <string name="open_pdd">打开拼多多</string>
+    <string name="open_by_priority">按优先级打开\n(京东/淘宝/天猫/亚马逊/拼多多)</string>
+    <string name="open_shop_failed">openShop %1$s 打开失败</string>
+    <string name="open_shop_priority">openShop SHOP_PRIORITY_ORDER %1$s 打开</string>
+    <string name="open_shop_no_available">openShop 没有可用的购物应用</string>
+    <string name="toast_no_available_shops">没有可用的购物应用</string>
+    <string name="open_shop_package_missing">openShop %1$s 不存在, 可能没有安装或者没有在 AndroidManifest &lt;queries&gt; 中添加包名</string>
+    <string name="toast_package_not_found">%1$s 未找到</string>
+    <string name="open_shop_intent_null">openShop intent为null,可能是 %1$s 没有实现 &lt;data android:scheme=&quot;https&quot;&gt; 属性</string>
+    <string name="shop_name_jd">京东</string>
+    <string name="shop_name_taobao">淘宝</string>
+    <string name="shop_name_tmall">天猫</string>
+    <string name="shop_name_amazon">亚马逊</string>
+    <string name="shop_name_amazon_cn">亚马逊中国</string>
 </resources>
