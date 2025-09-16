@@ -55,7 +55,7 @@ pipeline {
                     try {
                         env.START_UPLOAD_TIME = new Date().format('yyyy-MM-dd HH:mm:ss')
                         env.START_UPLOAD_TIMESTAMP = System.currentTimeMillis()
-                        def apkDir = APK_PATH + MATRIX"
+                        def apkDir = APK_PATH + MATRIX
                         def apkFiles = sh(script: """
                                 firstApk=\$(find ${apkDir} -name "*.apk" | head -n 1)
                                 echo \$firstApk | xargs -n 1 basename
