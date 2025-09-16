@@ -90,7 +90,7 @@ pipeline {
                         def capitalizedMatrix = env.MATRIX[0].toUpperCase() + env.MATRIX.substring(1)
                         echo "Running Gradle task: assemble${capitalizedMatrix}"
                         // 执行编译
-                        sh "./gradlew clean assemble${capitalizedMatrix}"
+                        sh "sudo ./gradlew clean assemble${capitalizedMatrix}"
                         echo "Gradle build succeeded: assemble${capitalizedMatrix}"
                     } catch (Exception e) {
                         // 捕获异常并记录原因
