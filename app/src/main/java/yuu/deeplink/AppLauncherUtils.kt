@@ -8,7 +8,6 @@ import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.core.net.toUri
 
-import yuu.deeplink.R
 
 object AppLauncherUtils {
     const val jd = "jing_dong"
@@ -40,7 +39,7 @@ object AppLauncherUtils {
         pdd to ShopInfo(
             packageName = "com.xunmeng.pinduoduo",
             url = "https://mobile.yangkeduo.com/goods2.html?ps=z0yk81K35c",
-            displayNameRes = R.string.shop_name_amazon_cn
+            displayNameRes = R.string.shop_name_pdd
         )
     )
     private val SHOP_PRIORITY_ORDER = listOf(jd, tb, tm, amazon, pdd)
