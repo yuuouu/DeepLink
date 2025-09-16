@@ -17,3 +17,6 @@ local.properties
 /.idea/git_toolbox_prj.xml
 /app/debug
 /app/release
+/.idea/AndroidProjectSystem.xml
+/.idea/runConfigurations.xml
+/.idea/vcs.xml
