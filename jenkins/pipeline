@@ -1,244 +1,329 @@
+// Jenkins Declarative Pipeline for Android packaging
+// 本脚本基于实践部分的经验进行改进，重点提升稳定性并添加注释说明。
+// 主要功能：检出代码 -> 查询提交记录 -> 编译 APK -> (可选)上传蒲公英 -> (可选)发送钉钉通知 -> 记录执行日志。
+
 pipeline {
+    // 在任意可用的代理节点执行任务
     agent any
+
+    /**
+     * 环境变量区
+     * 在这里定义的变量可以在整个流水线中使用。某些变量可以由外部触发参数覆盖，
+     * 因此尽量不要在此定义具体敏感信息（如凭证），可通过 Jenkins 凭据插件传入。
+     */
     environment {
+        // Git 仓库地址（可根据需要修改）
         GIT_REPO = 'https://github.com/yuuouu/DeepLink.git'
-        CSV_FILE = "${WORKSPACE}/yuu.csv"
+        // 构建类型（debug 或 release），对应 Gradle task 名称
         MATRIX = "debug"
+        // 标记上传和通知开关
+        PGYER = "false"     // 是否上传蒲公英，传入 true 则执行
+        DINGDING = "false"  // 是否发送钉钉通知，传入 true 则执行
+        // APK 输出目录，Gradle 会将构建结果放在此目录下的子目录
+        APK_OUTPUT_DIR = "${WORKSPACE}/app/build/outputs/apk"
+        // 构建分支，默认 master，如需构建其他分支可在外部参数中覆盖
+        BRANCH = "master"
+        // 初始化失败原因变量，便于在失败时记录
         FAILURE_REASON = ""
-        PGYER="false"
-        DINGDING="false"
-        APK_PATH="${WORKSPACE}/app/build/outputs/apk/"
     }
+
     stages {
-    
-        stage('Query Git Commits') {
+
+        /**
+         * Stage 1: 检出源代码
+         * 使用指定的仓库和分支检出代码。如果 BRANCH 为空则默认检出 master 分支。
+         */
+        stage('Checkout') {
             steps {
                 script {
-                    env.START_BUILD_TIME = new Date().format('yyyy-MM-dd HH:mm:ss')
-                    env.START_BUILD_TIMESTAMP = System.currentTimeMillis()
-                    def command = "git log -n 5 --pretty=\"%cn %cI %s\""
-                    def recentCommits = sh(script: command, returnStdout: true).trim()
-                    env.recentCommits = recentCommits
-                    def firstGitLine = recentCommits.tokenize('\n')[0]
-                    env.firstGitLine = firstGitLine
-                    echo "对外输出的log: ${firstGitLine}"
+                    echo "Checking out source code from ${env.GIT_REPO} on branch ${env.BRANCH}"
+                    // 构建分支名称，支持以 */master 形式指定所有远程分支
+                    def branchSpec = env.BRANCH?.trim() ? "*/${env.BRANCH.trim()}" : '*/master'
+                    // 检出代码，未指定凭据，则使用匿名访问；如需凭据请使用 credentialsId
+                    // 在实践教程中无需此步骤
+                    // checkout([$class: 'GitSCM', branches: [[name: branchSpec]],userRemoteConfigs: [[url: env.GIT_REPO]]])
                 }
             }
         }
 
+        /**
+         * Stage 2: 查询最近提交记录
+         * 打印最近提交信息，便于在通知或日志中查看。
+         */
+        stage('Query Git Commits') {
+            steps {
+                script {
+                    // 记录构建开始时间
+                    env.START_BUILD_TIME = new Date().format('yyyy-MM-dd HH:mm:ss')
+                    env.START_BUILD_TIMESTAMP = System.currentTimeMillis()
+                    // 获取需要查询的提交数量，默认为 5，可通过外部变量 QUERY_COMMITS 覆盖
+                    def commitNum = env.QUERY_COMMITS ?: '5'
+                    echo "Querying the last ${commitNum} git commits..."
+                    def command = "git log -n ${commitNum} --pretty=\"%cn %cI %s\""
+                    def recentCommits = sh(script: command, returnStdout: true).trim()
+                    // 保存完整的提交日志
+                    env.recentCommits = recentCommits
+                    // 取第一行作为概述信息
+                    def firstGitLine = recentCommits.tokenize('\n')[0]
+                    env.firstGitLine = firstGitLine
+                    echo "Latest commit summary: ${firstGitLine}"
+                }
+            }
+        }
+
+        /**
+         * Stage 3: 编译 APK
+         * 调用 Gradle 任务进行编译，并生成 apk 文件。根据 MATRIX 的值选择 debug 或 release 版本。
+         */
         stage('Build') {
             steps {
                 script {
                     try {
-                        def settingsGradleFile = "${WORKSPACE}/local.properties"
-                        if (!fileExists(settingsGradleFile)) {
-                            writeFile file: settingsGradleFile, text: 'sdk.dir="/root/Android/Sdk"'
+                        // 在缺少 local.properties 的情况下指定 Android SDK 路径
+                        def propsFile = "${WORKSPACE}/local.properties"
+                        if (!fileExists(propsFile)) {
+                            writeFile file: propsFile, text: 'sdk.dir=/root/Android/Sdk'
                         }
-                        sh "sudo chmod +x gradlew"
-                        def capitalizedMatrix = MATRIX[0].toUpperCase() + MATRIX.substring(1)
-                        sh "sudo ./gradlew clean assemble${capitalizedMatrix}"
-                        echo "Gradle 构建任务执行成功  ${capitalizedMatrix}"
+                        // 赋予 gradlew 可执行权限
+                        sh 'chmod +x gradlew'
+                        // 将 debug/release 首字母大写以匹配 Gradle 任务
+                        def capitalizedMatrix = env.MATRIX[0].toUpperCase() + env.MATRIX.substring(1)
+                        echo "Running Gradle task: assemble${capitalizedMatrix}"
+                        // 执行编译
+                        sh "./gradlew clean assemble${capitalizedMatrix}"
+                        echo "Gradle build succeeded: assemble${capitalizedMatrix}"
                     } catch (Exception e) {
-                        FAILURE_REASON = "Gradle 构建失败: ${e.message}"
-                        error(FAILURE_REASON)
+                        // 捕获异常并记录原因
+                        env.FAILURE_REASON = "Gradle build failed: ${e.message}"
+                        error(env.FAILURE_REASON)
                     }
                 }
             }
         }
 
+        /**
+         * Stage 4: 上传至蒲公英
+         * 当 PGYER 为 true 时执行上传操作。上传脚本需要依赖 upload_to_pgyer.py 和 Python3 环境。
+         */
         stage('Upload APK to Pgyer') {
+            // 只有 PGYER 环境变量为 'true'（忽略大小写）时才执行
             when {
-                 expression { PGYER?.toLowerCase() == 'true' }
+                expression { env.PGYER?.toLowerCase() == 'true' }
             }
             steps {
                 script {
                     try {
                         env.START_UPLOAD_TIME = new Date().format('yyyy-MM-dd HH:mm:ss')
                         env.START_UPLOAD_TIMESTAMP = System.currentTimeMillis()
-                        def apkDir = APK_PATH + MATRIX
-                        def apkFiles = sh(script: """
-                                firstApk=\$(find ${apkDir} -name "*.apk" | head -n 1)
-                                echo \$firstApk | xargs -n 1 basename
-                            """, returnStdout: true).trim()
-                        if (apkFiles.isEmpty()) {
-                            error("未找到 APK 文件。")
+                        // 构造 apk 路径，默认在 APK_OUTPUT_DIR/MATRIX 下寻找第一个 apk 文件
+                        def apkDir = "${env.APK_OUTPUT_DIR}/${env.MATRIX}"
+                        // 查找第一个 APK 文件的文件名
+                        def apkFileName = sh(script: "find ${apkDir} -type f -name '*.apk' | head -n 1 | xargs -n 1 basename", returnStdout: true).trim()
+                        if (!apkFileName) {
+                            error("No APK file found under ${apkDir}")
                         }
-                        def apkPath = "${apkDir}/${apkFiles}"
+                        def apkPath = "${apkDir}/${apkFileName}"
                         if (!fileExists(apkPath)) {
-                            error("文件 ${apkPath} 不存在。")
+                            error("APK file not found: ${apkPath}")
                         }
-                        env.INSTALL_TYPE = (env.INSTALL_TYPE && env.INSTALL_TYPE != 'null') ? env.INSTALL_TYPE : '1'
-                        echo "📤 准备上传 APK 到蒲公英..."
-                        def output = sh (
-                            script: """
-                                python3 -u upload_to_pgyer.py \
-                                    --file ${apkPath} \
-                                    --install_type ${env.INSTALL_TYPE} \
-                                    --password '${env.PASSWORD}' \
-                                    --update_description '${env.UPDATE}'
-                            """,
+                        // 校验上传脚本是否存在
+                        if (!fileExists('upload_to_pgyer.py')) {
+                            error('Missing upload_to_pgyer.py script in workspace.')
+                        }
+                        // 读取上传参数，若不存在则使用默认值
+                        def installType = env.INSTALL_TYPE ?: '1'
+                        def password    = env.PASSWORD ?: ''
+                        def updateDesc  = env.UPDATE ?: '更新说明'
+                        echo "Uploading APK to Pgyer: ${apkPath}"
+                        // 执行 Python 脚本上传
+                        def pyOutput = sh(
+                            script: "python3 -u upload_to_pgyer.py --file '${apkPath}' --install_type ${installType} --password '${password}' --update_description '${updateDesc}'",
                             returnStdout: true
                         ).trim()
-                        echo "py: ${output}"
-
-                        def result = readJSON file: 'upload_result.json'
-                        if (result.code != 0) {
-                            error "上传失败: ${result.message}"
+                        echo "Upload script output: ${pyOutput}"
+                        // 读取上传结果 JSON
+                        def resultJson = readJSON file: 'upload_result.json'
+                        if (resultJson.code != 0) {
+                            error("Failed to upload APK: ${resultJson.message}")
                         }
-                        def data = result['data']
-                        env.appVersion = data?.buildVersion
+                        def data = resultJson.data
+                        // 保存返回信息用于后续通知
+                        env.appVersion     = data?.buildVersion
                         env.appShortcutUrl = data?.buildShortcutUrl
-                        env.appUpdated = data?.buildUpdated
-                        env.appQRCodeURL = data?.buildQRCodeURL
+                        env.appUpdated     = data?.buildUpdated
+                        env.appQRCodeURL   = data?.buildQRCodeURL
                     } catch (Exception e) {
-                        FAILURE_REASON = "上传APK失败: ${e.message}"
+                        env.FAILURE_REASON = "Upload to Pgyer failed: ${e.message}"
                         throw e
                     }
                 }
             }
         }
 
-        stage('Post DingDing') {
+        /**
+         * Stage 5: 发送钉钉通知
+         * 当 DINGDING 为 true 时执行。需要 name_to_phone.json 映射表和钉钉机器人 token。
+         */
+        stage('Post DingTalk') {
             when {
-                 expression { DINGDING?.toLowerCase() == 'true' }
+                expression { env.DINGDING?.toLowerCase() == 'true' }
             }
             steps {
                 script {
                     try {
-                        def nameToPhoneMap = loadNameToPhoneMap()
+                        // 加载姓名与电话的映射文件，用于@具体人员
+                        def nameMap = loadNameToPhoneMap()
                         def atList = []
+                        // 处理构建人
                         if (env.NAME) {
-                            atList.add(nameToPhoneMap.get(env.NAME) ?: env.NAME)
+                            atList << (nameMap.get(env.NAME) ?: env.NAME)
                         }
+                        // 处理额外艾特人员，多个以逗号分隔
                         if (env.AT) {
-                            def names = env.AT.replaceAll("[\\[\\] ]", "").split(",")
-                            for (name in names) {
-                                atList.add(nameToPhoneMap.get(name) ?: name)
+                            env.AT.replaceAll(/[\[\] ]/, '').split(',').each { nm ->
+                                if (nm) atList << (nameMap.get(nm) ?: nm)
                             }
                         }
-                        env.robot = '2333'
+                        // 从凭据中获取钉钉机器人 ID（推荐），若未配置则使用默认 env.robot
+                        def robotId = env.robot ?: 'your-dingtalk-robot-id'
+                        // 构造文本和链接
+                        def title = env.UPDATE ?: '新版本发布'
+                        def link  = env.appShortcutUrl ? "https://www.pgyer.com/${env.appShortcutUrl}" : ''
+                        def qrImg = env.appQRCodeURL ?: ''
+                        echo "Sending DingTalk notification to ${atList}" 
                         dingtalk(
-                            robot: env.robot,
-                            type: 'MARKDOWN',
-                            title: env.UPDATE,
-                            text: [
-                            "### ${env.UPDATE}",
-                            '---',
-                            "- 构建分支: ${env.BRANCH}",
-                            "- 构建类型: ${MATRIX}",
-                            "- 构建版本: ${env.appVersion}",
-                            '---',
-                            "[https://www.pgyer.com/${env.appShortcutUrl}](https://www.pgyer.com/${env.appShortcutUrl})",
-                            "![二维码](${env.appQRCodeURL})"
-                            ],
-                            at: atList
+                            robot: robotId,
+                            type : 'MARKDOWN',
+                            title: title,
+                            text : [
+                                "### ${title}",
+                                '---',
+                                "- 构建分支: ${env.BRANCH}",
+                                "- 构建类型: ${env.MATRIX}",
+                                "- 构建版本: ${env.appVersion ?: '未知'}",
+                                '---',
+                                link ? "[点击下载](${link})" : '',
+                                qrImg ? "![二维码](${qrImg})" : ''
+                            ].findAll { it },
+                            at   : atList
                         )
                     } catch (Exception e) {
-                        echo "钉钉推送失败: ${e.message}"
+                        // 不影响主流程，仅记录错误
+                        echo "DingTalk notification failed: ${e.message}"
                     }
                 }
             }
         }
 
+        /**
+         * Stage 6: 记录日志到 CSV
+         * 当需要通知钉钉时执行 CSV 日志记录，可根据需要调整触发条件。
+         */
         stage('Log to CSV') {
             when {
-                 expression { DINGDING?.toLowerCase() == 'true' }
+                expression { env.DINGDING?.toLowerCase() == 'true' }
             }
             steps {
                 script {
                     try {
-                        writeCsvLog(true, "")
-                    } catch (e) {
-                        echo "CSV日志记录失败: ${e.message}"
+                        writeCsvLog(true, '')
+                    } catch (Exception e) {
+                        echo "Failed to write CSV log: ${e.message}"
                     }
                 }
             }
         }
     }
 
+    // post 块在所有 stages 结束后执行，用于记录结果和错误
     post {
         success {
-            echo 'Pipeline executed successfully!'
-            echo "最近 ${env.query} 次提交信息：\n${env.recentCommits}"
-            echo "开始构建时间: ${env.START_BUILD_TIME}"
-            echo "开始上传时间: ${env.START_UPLOAD_TIME}"
-            echo "构建完成时间: ${env.appUpdated}"
+            script {
+                echo 'Pipeline executed successfully.'
+                echo "Recent commits:\n${env.recentCommits ?: 'N/A'}"
+                echo "Build start time: ${env.START_BUILD_TIME ?: 'N/A'}"
+                echo "Upload start time: ${env.START_UPLOAD_TIME ?: 'N/A'}"
+                echo "Build updated time: ${env.appUpdated ?: 'N/A'}"
+            }
         }
         failure {
             script {
                 try {
-                    writeCsvLog(false, FAILURE_REASON ?: "")
-                } catch (e) {
-                    echo "失败情况CSV日志记录失败: ${e.message}"
+                    // 记录失败日志
+                    writeCsvLog(false, env.FAILURE_REASON ?: 'Unknown failure')
+                } catch (Exception e) {
+                    echo "Failed to write CSV failure log: ${e.message}"
                 }
+                echo 'Pipeline failed.'
             }
-            echo 'Pipeline failed!'
         }
     }
 }
 
-// 从外部文件读取姓名与电话映射
+/**
+ * 从 JSON 文件读取姓名与电话映射，文件名称为 name_to_phone.json。
+ * 如果文件不存在则抛出错误，确保不会误报通知。
+ */
 def loadNameToPhoneMap() {
-    def mapFile = "name_to_phone.json"
+    def mapFile = 'name_to_phone.json'
     if (!fileExists(mapFile)) {
-        error("缺少映射文件: ${mapFile}")
+        error "Mapping file not found: ${mapFile}"
     }
     return readJSON(file: mapFile)
 }
 
-// 统一 CSV 写入方法
-def writeCsvLog(boolean success, String failureReason = "") {
-    def endTimestamp = System.currentTimeMillis()
-    def startTimestamp = Long.parseLong(env.START_BUILD_TIMESTAMP ?: "0")
-    def uploadTimestamp = Long.parseLong(env.START_UPLOAD_TIMESTAMP ?: startTimestamp.toString())
+/**
+ * 统一 CSV 日志写入函数。
+ * @param success 构建是否成功
+ * @param failureReason 如果失败记录失败原因
+ */
+def writeCsvLog(boolean success, String failureReason = '') {
+    def endTimestamp    = System.currentTimeMillis()
+    def startTimestamp  = env.START_BUILD_TIMESTAMP ? Long.parseLong(env.START_BUILD_TIMESTAMP) : 0L
+    def uploadTimestamp = env.START_UPLOAD_TIMESTAMP ? Long.parseLong(env.START_UPLOAD_TIMESTAMP) : startTimestamp
 
+    // 计算持续时间
     def totalDuration = formatDuration(endTimestamp - startTimestamp)
     def buildDuration = formatDuration(uploadTimestamp - startTimestamp)
-    def uploadDuration = formatDuration(endTimestamp - uploadTimestamp)
-
+    def uploadDuration= formatDuration(endTimestamp - uploadTimestamp)
+    // 收集传递参数用于记录
     def transmissionData = [
-        "branch"  : env.BRANCH ?: "",
-        "name"    : env.NAME ?: "",
-        "update"  : env.UPDATE ?: "",
-        "at"      : env.AT ?: "",
-        "test"    : env.TEST ?: "",
-        "matrix"  : MATRIX ?: "",
-        "password": env.PASSWORD ? "***" : "",
-        "query"   : env.query ?: 5,
-        "shortcut": env.SHORTCUT ?: ""
+        'branch'  : env.BRANCH ?: '',
+        'name'    : env.NAME ?: '',
+        'update'  : env.UPDATE ?: '',
+        'at'      : env.AT ?: '',
+        'test'    : env.TEST ?: '',
+        'matrix'  : env.MATRIX ?: '',
+        'password': env.PASSWORD ? '***' : '',
+        'query'   : env.QUERY_COMMITS ?: '5',
+        'shortcut': env.appShortcutUrl ?: ''
     ]
     def transmissionJson = groovy.json.JsonOutput.toJson(transmissionData)
-
-    def pushInfo = ""
-    if (success && env.TEST?.toLowerCase() == 'true' && env.outtext) {
-        pushInfo = env.outtext.toString().replaceAll('\\[|\\]', '').replaceAll(', ', ' ')
-    }
-
+    // 构造 CSV 记录
     def csvRecord = [
         totalDuration,
         buildDuration,
         uploadDuration,
-        env.START_BUILD_TIME ?: "",
+        env.START_BUILD_TIME ?: '',
         success.toString(),
-        (env.firstGitLine ?: "").replaceAll(',', ';'),
-        pushInfo.replaceAll(',', ';'),
+        (env.firstGitLine ?: '').replaceAll(',', ';'),
+        (env.UPDATE ?: '').replaceAll(',', ';'),
         failureReason.replaceAll(',', ';'),
         transmissionJson.replaceAll(',', ';')
     ].collect { "\"${it}\"" }.join(',')
-
-    def csvRecordoutput = sh (
-        script: """
-            python3 -u save.py \
-                --csv '${csvRecord}'
-        """,
-        returnStdout: true
-    ).trim()
-    echo "csvRecord: ${csvRecord}"
-    echo "py output: ${csvRecordoutput}"
-    echo ' out ${env.CSV_FILE}'
+    // 保存到 CSV，依赖于 save.py 脚本
+    if (!fileExists('save.py')) {
+        echo 'save.py not found; skipping CSV logging.'
+        return
+    }
+    def pyResult = sh(script: "python3 -u save.py --csv '${csvRecord}'", returnStdout: true).trim()
+    echo "CSV record: ${csvRecord}"
+    echo "save.py output: ${pyResult}"
 }
 
-// 时间格式化
+/**
+ * 将毫秒转为 mm:ss 格式，用于输出持续时间。
+ */
 def formatDuration(long milliseconds) {
     long seconds = milliseconds / 1000
     long minutes = seconds / 60
