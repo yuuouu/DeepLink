@@ -13,23 +13,23 @@ class MainActivity: AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         findViewById<Button>(R.id.btn_jd).setOnClickListener {
-            AppLauncherUtils.openShop(this, "jd")
+            AppLauncherUtils.openShop(this, AppLauncherUtils.jd)
         }
 
         findViewById<Button>(R.id.btn_taobao).setOnClickListener {
-            AppLauncherUtils.openShop(this, "taobao")
+            AppLauncherUtils.openShop(this, AppLauncherUtils.tb)
         }
 
         findViewById<Button>(R.id.btn_tmall).setOnClickListener {
-            AppLauncherUtils.openShop(this, "tmall")
+            AppLauncherUtils.openShop(this, AppLauncherUtils.tm)
         }
 
         findViewById<Button>(R.id.btn_amazon).setOnClickListener {
-            AppLauncherUtils.openShop(this, "amazon")
+            AppLauncherUtils.openShop(this, AppLauncherUtils.amazon)
         }
 
-        findViewById<Button>(R.id.btn_amazon_cn).setOnClickListener {
-            AppLauncherUtils.openShop(this, "amazon_cn")
+        findViewById<Button>(R.id.btn_pdd).setOnClickListener {
+            AppLauncherUtils.openShop(this, AppLauncherUtils.pdd)
         }
 
         findViewById<Button>(R.id.btn_cycle).setOnClickListener {

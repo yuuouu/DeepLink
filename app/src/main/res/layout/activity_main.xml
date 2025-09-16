@@ -44,13 +44,13 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/btn_tmall"
-        app:layout_constraintBottom_toTopOf="@id/btn_amazon_cn" />
+        app:layout_constraintBottom_toTopOf="@id/btn_pdd" />
 
     <Button
-        android:id="@+id/btn_amazon_cn"
+        android:id="@+id/btn_pdd"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="打开亚马逊中国"
+        android:text="打开拼多多"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/btn_amazon"
@@ -60,10 +60,10 @@
         android:id="@+id/btn_cycle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="按优先级打开\n(京东/淘宝/天猫/亚马逊/亚马逊CN)"
+        android:text="按优先级打开\n(京东/淘宝/天猫/亚马逊/拼多多)"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/btn_amazon"
+        app:layout_constraintTop_toBottomOf="@id/btn_pdd"
         app:layout_constraintBottom_toBottomOf="parent"
         android:layout_marginBottom="50dp"/>
 

@@ -3,37 +3,30 @@ package yuu.deeplink
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.util.Log
 import android.widget.Toast
+import androidx.core.net.toUri
 
 object AppLauncherUtils {
+    const val jd = "jing_dong"
+    const val tb = "tao_bao"
+    const val tm = "tian_mao"
+    const val amazon = "amazon"
+    const val pdd = "pin_duo_duo"
     private val shopData = hashMapOf(
-        "jd" to ShopInfo(
-            packageName = "com.jingdong.app.mall", url = "https://mall.jd.com/index-11437885.html", displayName = "京东"
-        ), "taobao" to ShopInfo(
-            packageName = "com.taobao.taobao", url = "https://obsbot.tmall.com/", displayName = "淘宝"
-        ), "tmall" to ShopInfo(
-            packageName = "com.tmall.wireless", url = "https://obsbot.tmall.com/", displayName = "天猫"
-        ), "amazon" to ShopInfo(
-            packageName = "com.amazon.mShop.android.shopping", url = "https://www.amazon.com/s?me=A3NN5GYI68DJ8", displayName = "亚马逊"
-        ), "amazon_cn" to ShopInfo(
-            packageName = "cn.amazon.mShop.android", url = "https://globalstore.amazon.cn/brandStore/OBSBOT", displayName = "亚马逊中国"
-        )
+            jd to ShopInfo(packageName = "com.jingdong.app.mall", url = "https://mall.jd.com/index-1000000127.html", displayName = "京东"),
+            tb to ShopInfo(packageName = "com.taobao.taobao", url = "https://apple.tmall.com/", displayName = "淘宝"),
+            tm to ShopInfo(packageName = "com.tmall.wireless", url = "https://apple.tmall.com/", displayName = "天猫"),
+            amazon to ShopInfo(packageName = "com.amazon.mShop.android.shopping", url = " https://www.amazon.com/stores/Apple/page/77D9E1F7-0337-4282-9DB6-B6B8FB2DC98D", displayName = "亚马逊"),
+            pdd to ShopInfo(packageName = "com.xunmeng.pinduoduo", url = "https://mobile.yangkeduo.com/goods2.html?ps=z0yk81K35c", displayName = "亚马逊中国")
     )
-    private val SHOP_PRIORITY_ORDER = listOf(
-        "jd",       // 京东
-        "taobao",   // 淘宝
-        "tmall",    // 天猫
-        "amazon",   // 亚马逊国际
-        "amazon_cn" // 亚马逊中国
-    )
+    private val SHOP_PRIORITY_ORDER = listOf(jd, tb, tm, amazon, pdd)
 
     private fun checkApkExist(context: Context, packageName: String): Boolean {
         return try {
             context.packageManager.getApplicationInfo(packageName, 0)
             true
-        } catch (e: PackageManager.NameNotFoundException) {
+        } catch (_: PackageManager.NameNotFoundException) {
             false
         }
     }
@@ -41,7 +34,7 @@ object AppLauncherUtils {
     // 使用浏览器打开URL
     private fun openUrlByBrowser(context: Context, url: String) {
         try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            val intent = Intent(Intent.ACTION_VIEW, url.toUri())
             context.startActivity(intent)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -59,7 +52,7 @@ object AppLauncherUtils {
     fun openShop(context: Context) {
         for (shopKey in SHOP_PRIORITY_ORDER) {
             shopData[shopKey]?.let { shopInfo ->
-                if (openShop(context, shopInfo)) {
+                if (openShop(context, shopInfo.url, shopInfo.packageName, false)) {
                     Log.e("yuu", "openShop SHOP_PRIORITY_ORDER $shopKey 打开")
                     return
                 }
@@ -69,14 +62,10 @@ object AppLauncherUtils {
         Toast.makeText(context, "没有可用的购物应用", Toast.LENGTH_SHORT).show()
     }
 
-    private fun openShop(context: Context, shopInfo: ShopInfo): Boolean {
-        return openShop(context, shopInfo.url, shopInfo.packageName)
-    }
-
-    private fun openShop(context: Context, url: String, packageName: String): Boolean {
+    private fun openShop(context: Context, url: String, packageName: String, isShowToast: Boolean? = true): Boolean {
         if (!checkApkExist(context, packageName)) {
-            Log.e("yuu", "openShop $packageName 不存在, 可能没有安装或者没有在 AndroidManifest 的 <queries> 中添加包名")
-            Toast.makeText(context, "$packageName 未找到", Toast.LENGTH_SHORT).show()
+            Log.e("yuu", "openShop $packageName 不存在, 可能没有安装或者没有在 AndroidManifest <queries> 中添加包名")
+            if (isShowToast == true) Toast.makeText(context, "$packageName 未找到", Toast.LENGTH_SHORT).show()
             openUrlByBrowser(context, url)
             return false
         }
@@ -84,7 +73,7 @@ object AppLauncherUtils {
         return try {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 addCategory(Intent.CATEGORY_BROWSABLE)
-                data = Uri.parse(url)
+                data = url.toUri()
                 `package` = packageName
             }
 
@@ -92,7 +81,7 @@ object AppLauncherUtils {
                 context.startActivity(intent)
                 true
             } else {
-                Log.e("yuu", "openShop intent为null,可能是目标包没有实现 <data android:scheme=\"https\"> 属性")
+                Log.e("yuu", "openShop intent为null,可能是 $packageName 没有实现 <data android:scheme=\"https\"> 属性")
                 openUrlByBrowser(context, url)
                 false
             }
@@ -103,3 +92,5 @@ object AppLauncherUtils {
         }
     }
 }
+
+data class ShopInfo(val packageName: String, val url: String, val displayName: String)

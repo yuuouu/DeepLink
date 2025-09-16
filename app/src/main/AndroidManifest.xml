@@ -7,7 +7,7 @@
         <package android:name="com.taobao.taobao" />
         <package android:name="com.tmall.wireless" />
         <package android:name="com.amazon.mShop.android.shopping" />
-        <package android:name="cn.amazon.mShop.android" />
+        <package android:name="com.xunmeng.pinduoduo" />
     </queries>
 
     <application
