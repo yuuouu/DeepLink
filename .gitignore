@@ -14,3 +14,6 @@
 .cxx
 local.properties
 /apks
+/.idea/git_toolbox_prj.xml
+/app/debug
+/app/release
