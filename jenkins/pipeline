@@ -1,0 +1,247 @@
+pipeline {
+    agent any
+    environment {
+        GIT_REPO = 'https://github.com/yuuouu/DeepLink.git'
+        CSV_FILE = "${WORKSPACE}/yuu.csv"
+        MATRIX = "debug"
+        FAILURE_REASON = ""
+        PGYER="false"
+        DINGDING="false"
+        APK_PATH="${WORKSPACE}/app/build/outputs/apk/"
+    }
+    stages {
+    
+        stage('Query Git Commits') {
+            steps {
+                script {
+                    env.START_BUILD_TIME = new Date().format('yyyy-MM-dd HH:mm:ss')
+                    env.START_BUILD_TIMESTAMP = System.currentTimeMillis()
+                    def command = "git log -n 5 --pretty=\"%cn %cI %s\""
+                    def recentCommits = sh(script: command, returnStdout: true).trim()
+                    env.recentCommits = recentCommits
+                    def firstGitLine = recentCommits.tokenize('\n')[0]
+                    env.firstGitLine = firstGitLine
+                    echo "对外输出的log: ${firstGitLine}"
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    try {
+                        def settingsGradleFile = "${WORKSPACE}/local.properties"
+                        if (!fileExists(settingsGradleFile)) {
+                            writeFile file: settingsGradleFile, text: 'sdk.dir="/root/Android/Sdk"'
+                        }
+                        sh "sudo chmod +x gradlew"
+                        def capitalizedMatrix = MATRIX[0].toUpperCase() + MATRIX.substring(1)
+                        sh "sudo ./gradlew clean assemble${capitalizedMatrix}"
+                        echo "Gradle 构建任务执行成功  ${capitalizedMatrix}"
+                    } catch (Exception e) {
+                        FAILURE_REASON = "Gradle 构建失败: ${e.message}"
+                        error(FAILURE_REASON)
+                    }
+                }
+            }
+        }
+
+        stage('Upload APK to Pgyer') {
+            when {
+                 expression { PGYER?.toLowerCase() == 'true' }
+            }
+            steps {
+                script {
+                    try {
+                        env.START_UPLOAD_TIME = new Date().format('yyyy-MM-dd HH:mm:ss')
+                        env.START_UPLOAD_TIMESTAMP = System.currentTimeMillis()
+                        def apkDir = APK_PATH + MATRIX"
+                        def apkFiles = sh(script: """
+                                firstApk=\$(find ${apkDir} -name "*.apk" | head -n 1)
+                                echo \$firstApk | xargs -n 1 basename
+                            """, returnStdout: true).trim()
+                        if (apkFiles.isEmpty()) {
+                            error("未找到 APK 文件。")
+                        }
+                        def apkPath = "${apkDir}/${apkFiles}"
+                        if (!fileExists(apkPath)) {
+                            error("文件 ${apkPath} 不存在。")
+                        }
+                        env.INSTALL_TYPE = (env.INSTALL_TYPE && env.INSTALL_TYPE != 'null') ? env.INSTALL_TYPE : '1'
+                        echo "📤 准备上传 APK 到蒲公英..."
+                        def output = sh (
+                            script: """
+                                python3 -u upload_to_pgyer.py \
+                                    --file ${apkPath} \
+                                    --install_type ${env.INSTALL_TYPE} \
+                                    --password '${env.PASSWORD}' \
+                                    --update_description '${env.UPDATE}'
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        echo "py: ${output}"
+
+                        def result = readJSON file: 'upload_result.json'
+                        if (result.code != 0) {
+                            error "上传失败: ${result.message}"
+                        }
+                        def data = result['data']
+                        env.appVersion = data?.buildVersion
+                        env.appShortcutUrl = data?.buildShortcutUrl
+                        env.appUpdated = data?.buildUpdated
+                        env.appQRCodeURL = data?.buildQRCodeURL
+                    } catch (Exception e) {
+                        FAILURE_REASON = "上传APK失败: ${e.message}"
+                        throw e
+                    }
+                }
+            }
+        }
+
+        stage('Post DingDing') {
+            when {
+                 expression { DINGDING?.toLowerCase() == 'true' }
+            }
+            steps {
+                script {
+                    try {
+                        def nameToPhoneMap = loadNameToPhoneMap()
+                        def atList = []
+                        if (env.NAME) {
+                            atList.add(nameToPhoneMap.get(env.NAME) ?: env.NAME)
+                        }
+                        if (env.AT) {
+                            def names = env.AT.replaceAll("[\\[\\] ]", "").split(",")
+                            for (name in names) {
+                                atList.add(nameToPhoneMap.get(name) ?: name)
+                            }
+                        }
+                        env.robot = '2333'
+                        dingtalk(
+                            robot: env.robot,
+                            type: 'MARKDOWN',
+                            title: env.UPDATE,
+                            text: [
+                            "### ${env.UPDATE}",
+                            '---',
+                            "- 构建分支: ${env.BRANCH}",
+                            "- 构建类型: ${MATRIX}",
+                            "- 构建版本: ${env.appVersion}",
+                            '---',
+                            "[https://www.pgyer.com/${env.appShortcutUrl}](https://www.pgyer.com/${env.appShortcutUrl})",
+                            "![二维码](${env.appQRCodeURL})"
+                            ],
+                            at: atList
+                        )
+                    } catch (Exception e) {
+                        echo "钉钉推送失败: ${e.message}"
+                    }
+                }
+            }
+        }
+
+        stage('Log to CSV') {
+            when {
+                 expression { DINGDING?.toLowerCase() == 'true' }
+            }
+            steps {
+                script {
+                    try {
+                        writeCsvLog(true, "")
+                    } catch (e) {
+                        echo "CSV日志记录失败: ${e.message}"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline executed successfully!'
+            echo "最近 ${env.query} 次提交信息：\n${env.recentCommits}"
+            echo "开始构建时间: ${env.START_BUILD_TIME}"
+            echo "开始上传时间: ${env.START_UPLOAD_TIME}"
+            echo "构建完成时间: ${env.appUpdated}"
+        }
+        failure {
+            script {
+                try {
+                    writeCsvLog(false, FAILURE_REASON ?: "")
+                } catch (e) {
+                    echo "失败情况CSV日志记录失败: ${e.message}"
+                }
+            }
+            echo 'Pipeline failed!'
+        }
+    }
+}
+
+// 从外部文件读取姓名与电话映射
+def loadNameToPhoneMap() {
+    def mapFile = "name_to_phone.json"
+    if (!fileExists(mapFile)) {
+        error("缺少映射文件: ${mapFile}")
+    }
+    return readJSON(file: mapFile)
+}
+
+// 统一 CSV 写入方法
+def writeCsvLog(boolean success, String failureReason = "") {
+    def endTimestamp = System.currentTimeMillis()
+    def startTimestamp = Long.parseLong(env.START_BUILD_TIMESTAMP ?: "0")
+    def uploadTimestamp = Long.parseLong(env.START_UPLOAD_TIMESTAMP ?: startTimestamp.toString())
+
+    def totalDuration = formatDuration(endTimestamp - startTimestamp)
+    def buildDuration = formatDuration(uploadTimestamp - startTimestamp)
+    def uploadDuration = formatDuration(endTimestamp - uploadTimestamp)
+
+    def transmissionData = [
+        "branch"  : env.BRANCH ?: "",
+        "name"    : env.NAME ?: "",
+        "update"  : env.UPDATE ?: "",
+        "at"      : env.AT ?: "",
+        "test"    : env.TEST ?: "",
+        "matrix"  : MATRIX ?: "",
+        "password": env.PASSWORD ? "***" : "",
+        "query"   : env.query ?: 5,
+        "shortcut": env.SHORTCUT ?: ""
+    ]
+    def transmissionJson = groovy.json.JsonOutput.toJson(transmissionData)
+
+    def pushInfo = ""
+    if (success && env.TEST?.toLowerCase() == 'true' && env.outtext) {
+        pushInfo = env.outtext.toString().replaceAll('\\[|\\]', '').replaceAll(', ', ' ')
+    }
+
+    def csvRecord = [
+        totalDuration,
+        buildDuration,
+        uploadDuration,
+        env.START_BUILD_TIME ?: "",
+        success.toString(),
+        (env.firstGitLine ?: "").replaceAll(',', ';'),
+        pushInfo.replaceAll(',', ';'),
+        failureReason.replaceAll(',', ';'),
+        transmissionJson.replaceAll(',', ';')
+    ].collect { "\"${it}\"" }.join(',')
+
+    def csvRecordoutput = sh (
+        script: """
+            python3 -u save.py \
+                --csv '${csvRecord}'
+        """,
+        returnStdout: true
+    ).trim()
+    echo "csvRecord: ${csvRecord}"
+    echo "py output: ${csvRecordoutput}"
+    echo ' out ${env.CSV_FILE}'
+}
+
+// 时间格式化
+def formatDuration(long milliseconds) {
+    long seconds = milliseconds / 1000
+    long minutes = seconds / 60
+    seconds = seconds % 60
+    return String.format("%02d:%02d", minutes, seconds)
+}

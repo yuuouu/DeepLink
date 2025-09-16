@@ -5,6 +5,24 @@ plugins {
 
 android {
     namespace = "yuu.deeplink"
+
+    signingConfigs {
+        create("testRelease") {
+            val keystorePropertiesFile = rootProject.file("app/deeplink.jks")
+            storeFile = keystorePropertiesFile
+            storePassword = "deeplink"
+            keyAlias = "2333"
+            keyPassword = "deeplink"
+        }
+        create("testDebug") {
+            storeFile = file("app/deeplink.jks")
+            storePassword = "deeplink"
+            keyAlias = "2333"
+            keyPassword = "deeplink"
+        }
+    }
+
+
     compileSdk = 34
 
     defaultConfig {
