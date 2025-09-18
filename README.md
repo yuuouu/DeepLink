@@ -4,8 +4,9 @@
 
 ## Jenkins相关
 
-保姆级教程: [从零搭建 Jenkins Android 自动发包体系](https://yuuou.vercel.app/%E4%B8%9A%E5%8A%A1%E6%80%9D%E8%80%83/%E4%BB%8E%E9%9B%B6%E6%90%AD%E5%BB%BA%20Jenkins%20Android%20%E8%87%AA%E5%8A%A8%E5%8F%91%E5%8C%85%E4%BD%93%E7%B3%BB)
-具体代码可在 [pipeline](./jenkins/pipeline) 中查看
+保姆级教程: [从零搭建 Jenkins Android 自动发包体系](https://yuuou.vercel.app/%E4%B8%9A%E5%8A%A1%E6%80%9D%E8%80%83/%E4%BB%8E%E9%9B%B6%E6%90%AD%E5%BB%BA%20Jenkins%20Android%20%E8%87%AA%E5%8A%A8%E5%8F%91%E5%8C%85%E4%BD%93%E7%B3%BB)  
+
+具体代码可查看 [pipeline](./jenkins/pipeline)
 
 ## 功能亮点
 
