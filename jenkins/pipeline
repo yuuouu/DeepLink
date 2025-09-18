@@ -1,6 +1,5 @@
 // Jenkins Declarative Pipeline for Android packaging
 // 本脚本基于实践部分的经验进行改进，重点提升稳定性并添加注释说明。
-// 主要功能：检出代码 -> 查询提交记录 -> 编译 APK -> (可选)上传蒲公英 -> (可选)发送钉钉通知 -> 记录执行日志。
 
 pipeline {
     // 在任意可用的代理节点执行任务
@@ -28,51 +27,8 @@ pipeline {
     }
 
     stages {
-
         /**
-         * Stage 1: 检出源代码
-         * 使用指定的仓库和分支检出代码。如果 BRANCH 为空则默认检出 master 分支。
-         */
-        stage('Checkout') {
-            steps {
-                script {
-                    echo "Checking out source code from ${env.GIT_REPO} on branch ${env.BRANCH}"
-                    // 构建分支名称，支持以 */master 形式指定所有远程分支
-                    def branchSpec = env.BRANCH?.trim() ? "*/${env.BRANCH.trim()}" : '*/master'
-                    // 检出代码，未指定凭据，则使用匿名访问；如需凭据请使用 credentialsId
-                    // 在实践教程中无需此步骤
-                    // checkout([$class: 'GitSCM', branches: [[name: branchSpec]],userRemoteConfigs: [[url: env.GIT_REPO]]])
-                }
-            }
-        }
-
-        /**
-         * Stage 2: 查询最近提交记录
-         * 打印最近提交信息，便于在通知或日志中查看。
-         */
-        stage('Query Git Commits') {
-            steps {
-                script {
-                    // 记录构建开始时间
-                    env.START_BUILD_TIME = new Date().format('yyyy-MM-dd HH:mm:ss')
-                    env.START_BUILD_TIMESTAMP = System.currentTimeMillis()
-                    // 获取需要查询的提交数量，默认为 5，可通过外部变量 QUERY_COMMITS 覆盖
-                    def commitNum = env.QUERY_COMMITS ?: '5'
-                    echo "Querying the last ${commitNum} git commits..."
-                    def command = "git log -n ${commitNum} --pretty=\"%cn %cI %s\""
-                    def recentCommits = sh(script: command, returnStdout: true).trim()
-                    // 保存完整的提交日志
-                    env.recentCommits = recentCommits
-                    // 取第一行作为概述信息
-                    def firstGitLine = recentCommits.tokenize('\n')[0]
-                    env.firstGitLine = firstGitLine
-                    echo "Latest commit summary: ${firstGitLine}"
-                }
-            }
-        }
-
-        /**
-         * Stage 3: 编译 APK
+         * Stage: 编译 APK
          * 调用 Gradle 任务进行编译，并生成 apk 文件。根据 MATRIX 的值选择 debug 或 release 版本。
          */
         stage('Build') {
@@ -102,7 +58,7 @@ pipeline {
         }
 
         /**
-         * Stage 4: 上传至蒲公英
+         * Stage: 上传至蒲公英
          * 当 PGYER 为 true 时执行上传操作。上传脚本需要依赖 upload_to_pgyer.py 和 Python3 环境。
          */
         stage('Upload APK to Pgyer') {
@@ -161,7 +117,7 @@ pipeline {
         }
 
         /**
-         * Stage 5: 发送钉钉通知
+         * Stage: 发送钉钉通知
          * 当 DINGDING 为 true 时执行。需要 name_to_phone.json 映射表和钉钉机器人 token。
          */
         stage('Post DingTalk') {
@@ -197,38 +153,15 @@ pipeline {
                             title: title,
                             text : [
                                 "### ${title}",
-                                '---',
-                                "- 构建分支: ${env.BRANCH}",
-                                "- 构建类型: ${env.MATRIX}",
-                                "- 构建版本: ${env.appVersion ?: '未知'}",
-                                '---',
-                                link ? "[点击下载](${link})" : '',
-                                qrImg ? "![二维码](${qrImg})" : ''
+                                "- 分支: ${env.BRANCH}",
+                                "- 版本: ${env.appVersion ?: '未知'}",
+                                link ? "[点击下载](${link})" : ''
                             ].findAll { it },
                             at   : atList
                         )
                     } catch (Exception e) {
                         // 不影响主流程，仅记录错误
                         echo "DingTalk notification failed: ${e.message}"
-                    }
-                }
-            }
-        }
-
-        /**
-         * Stage 6: 记录日志到 CSV
-         * 当需要通知钉钉时执行 CSV 日志记录，可根据需要调整触发条件。
-         */
-        stage('Log to CSV') {
-            when {
-                expression { env.DINGDING?.toLowerCase() == 'true' }
-            }
-            steps {
-                script {
-                    try {
-                        writeCsvLog(true, '')
-                    } catch (Exception e) {
-                        echo "Failed to write CSV log: ${e.message}"
                     }
                 }
             }
@@ -240,20 +173,10 @@ pipeline {
         success {
             script {
                 echo 'Pipeline executed successfully.'
-                echo "Recent commits:\n${env.recentCommits ?: 'N/A'}"
-                echo "Build start time: ${env.START_BUILD_TIME ?: 'N/A'}"
-                echo "Upload start time: ${env.START_UPLOAD_TIME ?: 'N/A'}"
-                echo "Build updated time: ${env.appUpdated ?: 'N/A'}"
             }
         }
         failure {
             script {
-                try {
-                    // 记录失败日志
-                    writeCsvLog(false, env.FAILURE_REASON ?: 'Unknown failure')
-                } catch (Exception e) {
-                    echo "Failed to write CSV failure log: ${e.message}"
-                }
                 echo 'Pipeline failed.'
             }
         }
@@ -270,63 +193,4 @@ def loadNameToPhoneMap() {
         error "Mapping file not found: ${mapFile}"
     }
     return readJSON(file: mapFile)
-}
-
-/**
- * 统一 CSV 日志写入函数。
- * @param success 构建是否成功
- * @param failureReason 如果失败记录失败原因
- */
-def writeCsvLog(boolean success, String failureReason = '') {
-    def endTimestamp    = System.currentTimeMillis()
-    def startTimestamp  = env.START_BUILD_TIMESTAMP ? Long.parseLong(env.START_BUILD_TIMESTAMP) : 0L
-    def uploadTimestamp = env.START_UPLOAD_TIMESTAMP ? Long.parseLong(env.START_UPLOAD_TIMESTAMP) : startTimestamp
-
-    // 计算持续时间
-    def totalDuration = formatDuration(endTimestamp - startTimestamp)
-    def buildDuration = formatDuration(uploadTimestamp - startTimestamp)
-    def uploadDuration= formatDuration(endTimestamp - uploadTimestamp)
-    // 收集传递参数用于记录
-    def transmissionData = [
-        'branch'  : env.BRANCH ?: '',
-        'name'    : env.NAME ?: '',
-        'update'  : env.UPDATE ?: '',
-        'at'      : env.AT ?: '',
-        'test'    : env.TEST ?: '',
-        'matrix'  : env.MATRIX ?: '',
-        'password': env.PASSWORD ? '***' : '',
-        'query'   : env.QUERY_COMMITS ?: '5',
-        'shortcut': env.appShortcutUrl ?: ''
-    ]
-    def transmissionJson = groovy.json.JsonOutput.toJson(transmissionData)
-    // 构造 CSV 记录
-    def csvRecord = [
-        totalDuration,
-        buildDuration,
-        uploadDuration,
-        env.START_BUILD_TIME ?: '',
-        success.toString(),
-        (env.firstGitLine ?: '').replaceAll(',', ';'),
-        (env.UPDATE ?: '').replaceAll(',', ';'),
-        failureReason.replaceAll(',', ';'),
-        transmissionJson.replaceAll(',', ';')
-    ].collect { "\"${it}\"" }.join(',')
-    // 保存到 CSV，依赖于 save.py 脚本
-    if (!fileExists('save.py')) {
-        echo 'save.py not found; skipping CSV logging.'
-        return
-    }
-    def pyResult = sh(script: "python3 -u save.py --csv '${csvRecord}'", returnStdout: true).trim()
-    echo "CSV record: ${csvRecord}"
-    echo "save.py output: ${pyResult}"
-}
-
-/**
- * 将毫秒转为 mm:ss 格式，用于输出持续时间。
- */
-def formatDuration(long milliseconds) {
-    long seconds = milliseconds / 1000
-    long minutes = seconds / 60
-    seconds = seconds % 60
-    return String.format("%02d:%02d", minutes, seconds)
 }
