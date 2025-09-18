@@ -1,34 +1,61 @@
-# 电商平台的深度链接
+# 电商平台深度链接示例
 
-优雅的调起 京东/淘宝/天猫/亚马逊/拼多多 app的深度链接 
+该仓库提供了一个 Android 示例应用，展示如何在不申请额外权限的情况下，从应用内一键跳转到京东、淘宝、天猫、亚马逊、拼多多等主流电商平台的指定页面。项目封装了常用的深度链接调起逻辑，便于在自有项目中快速复用。
 
-**不需要申请任何权限**
+## 功能亮点
 
-## 原理
+- 📦 **内置多家电商配置**：预置五大平台的包名与示例链接，可直接体验或替换为自己的链接。
+- 🚀 **统一调起能力**：根据已安装的 App 自动选择最优平台，若未安装则回退到浏览器打开 H5 页面。
+- 🔒 **无需额外权限**：通过深度链接协议调起，无需在运行时申请敏感权限。
+- 🧩 **易于扩展**：仅需配置 `packageName` 与目标 URL，即可新增或替换商家入口。
 
-#### 1 逆向出apk的AndroidManifest.xml文件
+## 快速开始
 
-搜索`scheme="https"`找到类似的内容
+1. **克隆项目并导入**
+   - 使用 `git clone` 下载仓库，或直接在 Android Studio 中选择 *Get from VCS*。
+   - 使用 Android Studio 打开项目根目录后，会自动完成 Gradle 同步。
+
+2. **运行示例应用**
+   - 连接一台已安装目标电商平台的 Android 设备或启动模拟器。
+   - 编译并运行 `app` 模块，在首页选择对应平台即可验证调起效果。
+
+3. **自定义店铺或商品链接**
+   - 打开 [`AppLauncherUtils.kt`](app/src/main/java/yuu/deeplink/AppLauncherUtils.kt)，修改 `shopData` 中各平台的 `url` 字段即可替换跳转目标。
+   - 如需新增平台，可新增一条 `ShopInfo` 配置，并在 `SHOP_PRIORITY_ORDER` 中指定优先级。
+
+## 实现原理
+
+深度链接调起流程主要包含以下步骤：
+
+1. **解析第三方 App 的入口配置**：
+   - 通过反编译目标 App，阅读 `AndroidManifest.xml`，定位 `<intent-filter>` 中的深度链接规则（常见为 `http/https` scheme）。
+2. **准备目标链接**：
+   - 在目标 App 内点击分享或复制链接，确认其与 Manifest 中的规则匹配，例如 `https://mall.jd.com/index-1000000127.html`。
+3. **封装跳转逻辑**：
+   - 在项目中创建 `ShopInfo(packageName, url, displayName)`，并根据用户选择构造 `Intent.ACTION_VIEW` 去调起对应 App。
+4. **适配 App 安装状态**：
+   - 在尝试启动前先检测包是否存在，未安装时回退到系统浏览器打开同一链接，保证流程可用性。
+
+## 必要的清单配置
+
+为确保应用能够发现并调用其他 App，需要在主模块的 `AndroidManifest.xml` 中声明 `queries`：
+
 ```xml
-<intent-filter>
-    <category android:name="android.intent.category.DEFAULT" />
-    <action android:name="android.intent.action.VIEW" />
-    <category android:name="android.intent.category.BROWSABLE" />
-    <data android:scheme="http" />
-    <data android:scheme="https" />
-    <data android:host="*.abc.com" />
-    <data android:host="*.qwe.com" />
-</intent-filter>
+<queries>
+    <package android:name="com.jingdong.app.mall" />
+    <package android:name="com.taobao.taobao" />
+    <package android:name="com.tmall.wireless" />
+    <package android:name="com.amazon.mShop.android.shopping" />
+    <package android:name="com.xunmeng.pinduoduo" />
+</queries>
 ```
-#### 2 找到要进入的商铺或商品链接
 
-在app内点击分享,复制链接,例如:https://mall.jd.com/index-1000000127.html
+如果新增或修改平台，记得同步更新清单配置，避免在 Android 11 及以上版本无法查询到目标 App。
 
-#### 3 接合内容
+## 常见问题
 
-生成`ShopInfo(packageName = "com.jingdong.app.mall", url = "https://mall.jd.com/index-1000000127.html",
-displayName = "京东")`
+- **为什么没有反应？** 请确认目标 App 是否安装，或查看 Logcat 是否有 `open_shop` 相关日志。
+- **如何扩展到更多平台？** 拿到目标 App 的包名与可匹配的深度链接，按照上文的方式在 `shopData` 中补充即可。
+- **能否在 WebView 中使用？** 只要能够触发上述跳转逻辑，即可复用；注意在 WebView 环境下同样需要检查设备是否安装目标 App。
 
-#### 4 注意在项目清单文件内需声明 queries
-
-这样才能打开对应的app,例如: `<package android:name="com.jingdong.app.mall" />`
+欢迎提交 Issue 或 PR 来完善更多平台的深度链接支持。
