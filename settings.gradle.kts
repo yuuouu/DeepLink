@@ -20,5 +20,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "DeepLink"
-include(":app")
- 
+include(":deeolink")
