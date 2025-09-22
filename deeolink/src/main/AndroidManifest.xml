@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <queries>
+        <package android:name="com.jingdong.app.mall" />
+        <package android:name="com.taobao.taobao" />
+        <package android:name="com.tmall.wireless" />
+        <package android:name="com.amazon.mShop.android.shopping" />
+        <package android:name="com.xunmeng.pinduoduo" />
+    </queries>
+
+</manifest>
